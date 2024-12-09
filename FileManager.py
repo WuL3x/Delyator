@@ -1,13 +1,12 @@
+import logging
 import os
 
 
 class FileManager:
-    def __init__(self, file_path):
-        self.file_name = file_path
-
-    def create_output_folder(self, file_path):
-        self.file_name = os.path.basename(file_path)
-        folder_name = os.path.splitext(self.file_name)[0]
+    @staticmethod
+    def create_output_folder(file_path):
+        file_name = os.path.basename(file_path)
+        folder_name = os.path.splitext(file_name)[0]
         output_folder = os.path.join(os.path.expanduser("~"), "Downloads", folder_name)
         os.makedirs(output_folder, exist_ok=True)
         return output_folder
@@ -22,9 +21,29 @@ class FileManager:
     def create_folder(folder_name, name):
         sanitized_filename = FileManager.sanitize_filename(name)
         folder_path = os.path.join(folder_name, sanitized_filename)
+
+        logging.info(f"Пытаемся создать папку по пути: {folder_path}")
+
         os.makedirs(folder_path, exist_ok=True)
+        logging.info(f"Папка '{folder_path}' успешно создана или уже существует.")
+
         return folder_path
+
     @staticmethod
-    def create_file(parent_folder, name):
+    def create_file(parent_folder, name, wb):
+
         sanitized_filename = FileManager.sanitize_filename(name)
-        return os.path.join(parent_folder, f'{sanitized_filename}.xlsx')
+
+        file_path = os.path.join(parent_folder, f'{sanitized_filename}.xlsx')
+
+        if not os.path.exists(parent_folder):
+            os.makedirs(parent_folder)
+            logging.info(f"Создана папка: {parent_folder}")
+
+        if os.path.exists(file_path):
+            logging.info(f"Файл {file_path} уже существует.")
+        else:
+            wb.save(file_path)
+            logging.info(f"Создан файл: {file_path}")
+
+        return file_path

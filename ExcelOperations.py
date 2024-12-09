@@ -1,6 +1,6 @@
 from copy import copy
 from tkinter import Tk, filedialog, simpledialog
-
+import logging
 
 class ExcelOperations:
     def __init__(self, path: str):
@@ -20,10 +20,17 @@ class ExcelOperations:
         new_cell.protection = copy(main_cell.protection)
 
     @staticmethod
-    def create_header(main_sheet, new_sheet):
-        for col, header_cell in enumerate(main_sheet[1], start=1):
-            new_sheet.cell(row=1, column=col, value=header_cell.value)
-            ExcelOperations.apply_cell_styles(header_cell, new_sheet.cell(row=1, column=col))
+    def create_header(source_sheet, target_sheet):
+
+        for col_num, cell in enumerate(source_sheet[1], start=1):
+            if isinstance(cell, tuple):
+                cell = cell[0]
+            new_cell = target_sheet.cell(row=1, column=col_num, value=cell.value)
+
+            ExcelOperations.apply_cell_styles(cell, new_cell)
+        logging.info("Заголовок успешно скопирован на новый лист с сохранением стилей")
+
+
     @staticmethod
     def copy_row(main_sheet, new_sheet, row, new_row_index):
         for col in range(1, main_sheet.max_column + 1):
@@ -50,5 +57,10 @@ class ExcelOperations:
                     dims[col_char] = max((dims.get(cell.column, min_wid), len(str(cell.value))))
 
         return dims
+
+    @staticmethod
+    def set_columns_width(sheet, dims:dict):
+        for col, width in dims.items():
+            sheet.column_dimensions[col].width = width
 
 
