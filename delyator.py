@@ -1,52 +1,17 @@
-import os
-from concurrent.futures import ThreadPoolExecutor
-from tkinter import Tk, Label, Button, filedialog, simpledialog
+import concurrent.futures
 import logging
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor
+from tkinter import messagebox
+
 from openpyxl import load_workbook, Workbook
 
-from FileManager import FileManager as fm
 from ExcelOperations import ExcelOperations
+from FileManager import FileManager as fm
+from TKinter import TKinter
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-
-root = Tk()
-root.withdraw()
-
-def choose_file():
-    logging.info("Запрос на выбор файла Excel")
-    file_path = filedialog.askopenfilename(title="Выберите файл Excel", filetypes=[("Excel files", "*.xlsx")])
-    return file_path
-
-def choose_columns() -> tuple:
-    logging.info("Запрос на выбор столбцов для куратора и начальника")
-    def column_letter_to_number(letter):
-        return ord(letter.upper()) - 65
-
-    genus_column_letter = simpledialog.askstring(title="Выбор столбца", prompt="Введите букву столбца для куратора:")
-    species_column_letter = simpledialog.askstring(title="Выбор столбца", prompt="Введите букву столбца для начальника:")
-
-    genus_column_num = column_letter_to_number(genus_column_letter)
-    species_column_num = column_letter_to_number(species_column_letter)
-    logging.info(f"Выбраны столбцы: Куратор - {genus_column_num}, Начальник - {species_column_num}")
-    return genus_column_num, species_column_num
-
-def deploy_tkinter(func1):
-    logging.info("Запуск графического интерфейса")
-    root.deiconify()
-    root.title("Делятор-v2")
-    root.geometry("400x200")
-
-    status_label = Label(root, text="Нажмите кнопку 'Обработать файл', для начала работы")
-    status_label.pack(pady=10)
-
-    def on_process_button_click():
-        logging.info("Обработка файла началась")
-        func1()
-
-    process_button = Button(root, text='Обработать файл', command=on_process_button_click)
-    process_button.pack(pady=5)
-    return root
 
 def sort_group(file_path, sheet, folder_column, file_column):
     logging.info(f"Начало сортировки данных по столбцу {file_column}")
@@ -112,8 +77,10 @@ def process_group(sheet, folder_name, files, output_folder):
 
 def process_multi(sheet, gen_column, spc_column, output_folder):
     logging.info("Группировка данных по начальнику и куратору")
-
     grouped_data = {}
+    total_row = len(list(sheet.iter_rows(min_row=2)))
+    processed_rows = 0
+
     for row in sheet.iter_rows(min_row=2):
         folder_name = row[gen_column].value
         file_name = row[spc_column].value
@@ -127,28 +94,55 @@ def process_multi(sheet, gen_column, spc_column, output_folder):
             grouped_data[folder_name][file_name] = []
 
         grouped_data[folder_name][file_name].append(row)
+        # processed_rows += 1
+        #
+        # if processed_rows % (total_row // 10) == 0:
+        #     progress = int((processed_rows / total_row) * 100)
+        #     update_progress(progress)
 
     tasks = [(sheet, folder_name, files, output_folder) for folder_name, files in grouped_data.items()]
-
     with ThreadPoolExecutor() as executor:
-        executor.map(lambda p: process_group(*p), tasks)
+        with ThreadPoolExecutor() as executor:
+            executor.map(lambda p: process_group(*p), tasks)
 
-def main():
-    file_path = choose_file()
 
-    def activate_main_sheet():
+
+def process_file():
+    logging.info("Process file function called.")
+    file_path = tk_interface.choose_file()
+    if not file_path:
+        logging.info("Файл не выбран")
+        return
+
+    try:
         main_wb = load_workbook(file_path)
-        return main_wb.active
+        main_sheet = main_wb.active
+    except Exception as e:
+        logging.error(f"Ошибка при загрузке файла: {e}")
+        messagebox.showerror("Ошибка", f"Не удалось загрузить файл: {e}")
+        return
+    tk_interface.progress_bar['value'] = 0
 
     output_folder = fm.create_output_folder(file_path=file_path)
     logging.info(f"Создана выходная папка: {output_folder}")
-    main_sheet = activate_main_sheet()
 
-    genus_column_num, species_column_num = choose_columns()
+    genus_column_num, species_column_num = tk_interface.choose_columns()
+    # if genus_column_num is None or species_column_num is None:
+    #     return
+
     sorted_sheet = sort_group(file_path, main_sheet, genus_column_num, species_column_num)
-
+    # with concurrent.futures.ThreadPoolExecutor() as executor:
+    #     future = executor.submit(process_multi, sorted_sheet, genus_column_num, species_column_num, output_folder)
+    #     future.add_done_callback(lambda f: tk_interface.update_progress(100))
     process_multi(sorted_sheet, genus_column_num, species_column_num, output_folder)
+    tk_interface.update_progress(100)
+    messagebox.showinfo("Завершение обработки", "Деление завершилось!")
+
+
 
 if __name__ == "__main__":
-    root = deploy_tkinter(main)
-    root.mainloop()
+    logging.basicConfig(level=logging.INFO)
+    logging.info('Начинается вывод графического интерфейса')
+    tk_interface = TKinter()
+    tk_interface.set_process_callback(process_file)
+    tk_interface.mainloop()
